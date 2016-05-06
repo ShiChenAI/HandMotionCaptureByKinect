@@ -1,0 +1,16 @@
+﻿<Window x:Class="HandMotionCaptureByKinect.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HandMotionCaptureByKinect"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="600" Width="700" Loaded="Window_Loaded" Closing="Window_Closing">
+    <Grid Margin="0,0,0,81">
+        <StatusBar Height="32" Margin="7,0,13,-72" VerticalAlignment="Bottom"/>
+        <Image x:Name="image" Margin="10,10,13,10"/>
+        <Button x:Name="btnSaveImage" Content="Save" Margin="0,0,14,-35" Click="btnSaveImage_Click" HorizontalAlignment="Right" Width="75" Height="22" VerticalAlignment="Bottom"/>
+
+
+    </Grid>
+</Window>
