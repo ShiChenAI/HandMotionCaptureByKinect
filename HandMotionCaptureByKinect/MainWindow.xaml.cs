@@ -39,16 +39,16 @@ namespace HandMotionCaptureByKinect
         private static readonly uint[] BodyColor =
         {
             0x0000FF00,
-            //0x00FF0000,
-            //0xFFFF4000,
-            //0x40FFFF00,
-            //0xFF40FF00,
-            //0xFF808000,
-            0x0000FF00,
-            0x0000FF00,
-            0x0000FF00,
-            0x0000FF00,
-            0x0000FF00,
+            0x00FF0000,
+            0xFFFF4000,
+            0x40FFFF00,
+            0xFF40FF00,
+            0xFF808000,
+            //0x0000FF00,
+            //0x0000FF00,
+            //0x0000FF00,
+            //0x0000FF00,
+            //0x0000FF00,
         };
 
         /// <summary>
@@ -117,9 +117,24 @@ namespace HandMotionCaptureByKinect
         private float maxHandDist = 0;
 
         /// <summary>
+        /// 右手手腕深度值
+        /// </summary>
+        private float rightWristDist = 0;
+
+        /// <summary>
+        /// 左手手腕深度值
+        /// </summary>
+        private float leftWristDist = 0;
+
+        /// <summary>
         /// Intermediate storage for frame data converted to color
         /// </summary>
         private byte[] depthPixels = null;
+
+        /// <summary>
+        /// 保存手的信息(0-其他,1-左手, 2-右手)
+        /// </summary>
+        private int[] handPixels = null;
 
         /// <summary>
         /// 深度信息
@@ -127,14 +142,29 @@ namespace HandMotionCaptureByKinect
         private FrameDescription depthFrameDescription = null;
 
         /// <summary>
-        /// 获取左手像素点数量
+        /// 最远的手(1-左, 2-右)
         /// </summary>
-        private int leftHandPixelCount = 0;
+        private int maxDistHand = 0;
 
         /// <summary>
-        /// 获取右手像素点数量
+        /// 手的像素点限制区域宽度
         /// </summary>
-        private int rightHandPixelCount = 0;
+        private int handPixelLimitedWidth = 85;
+
+        /// <summary>
+        /// 手的像素点限制区域高度
+        /// </summary>
+        private int handPixelLimitedHeight = 106;
+
+        /// <summary>
+        /// 左手中心点的像素点
+        /// </summary>
+        private int leftHandCenterPixel = 0;
+
+        /// <summary>
+        /// 右手中心点的像素点
+        /// </summary>
+        private int rightHandCenterPixel = 0;
 
         public MainWindow()
         {
@@ -219,6 +249,183 @@ namespace HandMotionCaptureByKinect
             ProcessMultiFrameByHandDepth(e);
         }
 
+
+        /// <summary>
+        /// 通过手的深度数据计算
+        /// </summary>
+        /// <param name="e"></param>
+        private void ProcessMultiFrameByHandDepth(MultiSourceFrameArrivedEventArgs e)
+        {
+            // 初始化
+            MultiSourceFrameReference multiFrameReference = e.FrameReference;
+            MultiSourceFrame multiSourceFrame = multiFrameReference.AcquireFrame();
+
+            // 获取骨骼信息
+            TimerAssist ta = new TimerAssist();
+            ta.Start();
+            bool dataReceived = false;
+            BodyFrameReference bodyFrameReference = multiSourceFrame.BodyFrameReference;
+            using (BodyFrame bodyFrame = bodyFrameReference.AcquireFrame())
+            {
+                if (bodyFrame != null)
+                {
+                    if (this.bodies == null)
+                    {
+                        this.bodies = new Body[bodyFrame.BodyCount];
+                    }
+
+                    bodyFrame.GetAndRefreshBodyData(this.bodies);
+                    dataReceived = true;
+                }
+            }
+
+            if (!dataReceived)
+            {
+                return;
+            }
+
+            //             if (dataReceived)
+            //             {
+            //                 foreach (Body body in this.bodies)
+            //                 {
+            //                     if (body.IsTracked)
+            //                     {
+            //                         IReadOnlyDictionary<JointType, Joint> joints = body.Joints;
+            // 
+            //                         // 获取手腕坐标
+            //                         float rightHandDist = joints[JointType.WristRight].Position.Z;
+            //                         float leftHandDist = joints[JointType.WristLeft].Position.Z;
+            //                         //float rightHandDist = joints[JointType.ElbowRight].Position.Z;
+            //                         //float leftHandDist = joints[JointType.ElbowLeft].Position.Z;
+            // 
+            // 
+            //                         // 计算手部捕捉阈值
+            //                         maxHandDist = rightHandDist > leftHandDist ? rightHandDist * 1000 : leftHandDist * 1000;
+            //                     }
+            //                 }
+            //             }
+
+            foreach (Body body in this.bodies)
+            {
+                if (body.IsTracked)
+                {
+                    IReadOnlyDictionary<JointType, Joint> joints = body.Joints;
+
+                    // 获取手腕坐标
+                    rightWristDist = joints[JointType.WristRight].Position.Z * 1000;
+                    leftWristDist = joints[JointType.WristLeft].Position.Z * 1000;
+                    //float rightHandDist = joints[JointType.ElbowRight].Position.Z;
+                    //float leftHandDist = joints[JointType.ElbowLeft].Position.Z;
+
+                    //                     // 获取手掌坐标
+                    //                     float rightHandDist = joints[JointType.HandRight].Position.Z;
+                    //                     float leftHandDist = joints[JointType.HandLeft].Position.Z;
+                    // 
+                    //                     // 计算深度阈值范围
+                    //                     float rightGap = Math.Abs(rightWristDist - rightHandDist);
+                    //                     float leftGap = Math.Abs(leftWristDist - leftHandDist);
+                    // 
+                    //                     this.rightMiniDist = (rightHandDist - rightGap) * 1000;
+                    //                     this.rightMaxDist = rightWristDist * 1000;
+                    // 
+                    //                     this.leftMiniDist = (leftHandDist - leftGap) * 1000;
+                    //                     this.leftMaxDist = leftWristDist * 1000;
+
+                    // 计算手部捕捉阈值
+                    maxHandDist = rightWristDist > leftWristDist ? rightWristDist : leftWristDist;
+                }
+            }
+
+            //             if (this.rightMiniDist == 0 || this.rightMaxDist == 0 || this.leftMiniDist == 0 || this.leftMaxDist == 0)
+            //             {
+            //                 return;
+            //             }
+
+            if (maxHandDist == 0)
+            {
+                return;
+            }
+
+            if (Utility.IsEqual(leftWristDist, maxHandDist))
+            {
+                maxDistHand = 1;
+            }
+            else if (Utility.IsEqual(rightWristDist, maxHandDist))
+            {
+                maxDistHand = 2;
+            }
+
+            ta.AddTimePoint("骨骼信息");
+
+            // 获取深度信息
+            bool depthFrameProcessed = false;
+            DepthFrameReference depthFrameReference = multiSourceFrame.DepthFrameReference;
+            using (DepthFrame depthFrame = depthFrameReference.AcquireFrame())
+            {
+                if (depthFrame != null)
+                {
+                    // the fastest way to process the body index data is to directly access 
+                    // the underlying buffer
+                    using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
+                    {
+                        // verify data and write the color data to the display bitmap
+                        if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
+                            (this.depthFrameDescription.Width == this.bodyIndexBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.bodyIndexBitmap.PixelHeight))
+                        {
+                            // Note: In order to see the full range of depth (including the less reliable far field depth)
+                            // we are setting maxDepth to the extreme potential depth threshold
+                            ushort maxDepth = ushort.MaxValue;
+
+                            // If you wish to filter by reliable depth distance, uncomment the following line:
+                            //// maxDepth = depthFrame.DepthMaxReliableDistance
+
+                            this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
+                            depthFrameProcessed = true;
+                        }
+                    }
+                }
+            }
+
+            if (!depthFrameProcessed)
+            {
+                return;
+            }
+
+            ta.AddTimePoint("深度信息");
+
+            // 获取身体指数信息
+            bool bodyIndexFrameProcessed = false;
+            BodyIndexFrameReference bodyIndexFrameReference = multiSourceFrame.BodyIndexFrameReference;
+            using (BodyIndexFrame bodyIndexFrame = bodyIndexFrameReference.AcquireFrame())
+            {
+                if (bodyIndexFrame != null)
+                {
+                    // the fastest way to process the body index data is to directly access 
+                    // the underlying buffer
+                    using (Microsoft.Kinect.KinectBuffer bodyIndexBuffer = bodyIndexFrame.LockImageBuffer())
+                    {
+                        // verify data and write the color data to the display bitmap
+                        if (((this.bodyIndexFrameDescription.Width * this.bodyIndexFrameDescription.Height) == bodyIndexBuffer.Size) &&
+                            (this.bodyIndexFrameDescription.Width == this.bodyIndexBitmap.PixelWidth) && (this.bodyIndexFrameDescription.Height == this.bodyIndexBitmap.PixelHeight))
+                        {
+                            // 遍历像素点集合, 将大于手部阈值的点置为255
+                            this.ProcessBodyIndexFrameData(bodyIndexBuffer.UnderlyingBuffer, bodyIndexBuffer.Size);
+                            bodyIndexFrameProcessed = true;
+                        }
+                    }
+                }
+            }
+            ta.AddTimePoint("身体指数信息");
+
+            if (bodyIndexFrameProcessed)
+            {
+                this.RenderBodyIndexPixels();
+            }
+
+            ta.AddTimePoint("绘制");
+            ta.PrintResult();
+        }
+
         /// <summary>
         /// Directly accesses the underlying image buffer of the BodyIndexFrame to 
         /// create a displayable bitmap.
@@ -231,42 +438,68 @@ namespace HandMotionCaptureByKinect
         {
             byte* frameData = (byte*)bodyIndexFrameData;
 
-            // convert body index to a visual representation
-            for (int i = 0; i < (int)bodyIndexFrameDataSize; ++i)
+            for (int i = 0; i < this.handPixels.Count(); i++)
             {
-                // the BodyColor array has been sized to match
-                // BodyFrameSource.BodyCount
-                if (frameData[i] < BodyColor.Length && this.depthPixels[i]!= 0)
+                if (frameData[i] < BodyColor.Length && this.depthPixels[i] != 0)
                 {
-                    // this pixel is part of a player,
-                    // display the appropriate color
-                    this.bodyIndexPixels[i] = BodyColor[frameData[i]];
-                    this.bodyIndexPixels[i] = 0;
-
-                    // 进行外部点的判断                  
-                    if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    this.bodyIndexPixels[i] = 0x00000000;
+                    switch (handPixels[i])
                     {
-                        // 如果上下左右任一点颜色是255, 则该点为外部点
-                        if (frameData[i - 512] == 255 || frameData[i - 1] == 255|| frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                        {
-                            this.bodyIndexPixels[i] = handOutlineColor;
-                        }
+                        case 1:
+                            // 进行外部点的判断                  
+                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                            {
+                                // 如果上下左右任一点颜色是255, 则该点为外部点
+                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                {
+                                    this.bodyIndexPixels[i] = handOutlineColor;
+                                }
+                            }
+                            break;
+                        case 2:
+                            // 进行外部点的判断                  
+                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                            {
+                                // 如果上下左右任一点颜色是255, 则该点为外部点
+                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                {
+                                    this.bodyIndexPixels[i] = BendHandOutlineColor;
+                                }
+                            }
+                            break;
+                        default:
+                            this.bodyIndexPixels[i] = 0x00000000;
+                            break;
                     }
 
-                    //// 根据阈值计算弯曲手指
-                    //if (this.depthPixels[i] < this.maxHandDist - 5)
+                    //if (handPixels[i] == 0)
                     //{
-                    //    this.bodyIndexPixels[i] = BendHandOutlineColor;
+                    //    this.bodyIndexPixels[i] = 0x00000000;
                     //}
-
-
-
-
-
-
-
-
-
+                    //else if (handPixels[i] == 1)
+                    //{
+                    //    // 进行外部点的判断                  
+                    //    if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    //    {
+                    //        // 如果上下左右任一点颜色是255, 则该点为外部点
+                    //        if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                    //        {
+                    //            this.bodyIndexPixels[i] = handOutlineColor;
+                    //        }
+                    //    }
+                    //}
+                    //else if (handPixels[i] == 2)
+                    //{
+                    //    // 进行外部点的判断                  
+                    //    if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    //    {
+                    //        // 如果上下左右任一点颜色是255, 则该点为外部点
+                    //        if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                    //        {
+                    //            this.bodyIndexPixels[i] = BendHandOutlineColor;
+                    //        }
+                    //    }
+                    //}
 
 
                 }
@@ -277,6 +510,139 @@ namespace HandMotionCaptureByKinect
                     this.bodyIndexPixels[i] = 0x00000000;
                 }
             }
+
+            // 轮廓像素点位置过滤
+
+
+
+
+
+
+            // 轮廓像素点排序
+
+
+
+
+
+
+
+
+
+
+
+
+            //// 遍历左手像素点编号
+            //foreach (int index in leftHandPixelInxexs)
+            //{
+            //    if (frameData[index] < BodyColor.Length && this.depthPixels[index] != 0)
+            //    {
+            //        // 进行外部点的判断                  
+            //        if (index > 512 && index + 512 < (int)bodyIndexFrameDataSize)
+            //        {
+            //            // 如果上下左右任一点颜色是255, 则该点为外部点
+            //            if (frameData[index - 512] == 255 || frameData[index - 1] == 255 || frameData[index + 1] == 255 || frameData[index + 512] == 255)
+            //            {
+            //                this.bodyIndexPixels[index] = handOutlineColor;
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        // this pixel is not part of a player
+            //        // display black
+            //        this.bodyIndexPixels[index] = 0x00000000;
+            //    }
+            //}
+
+
+
+            //// 遍历右手像素点编号
+            //foreach (int index in rightHandPixelInxexs)
+            //{
+            //    if (frameData[index] < BodyColor.Length && this.depthPixels[index] != 0)
+            //    {
+            //        // 进行外部点的判断                  
+            //        if (index > 512 && index + 512 < (int)bodyIndexFrameDataSize)
+            //        {
+            //            // 如果上下左右任一点颜色是255, 则该点为外部点
+            //            if (frameData[index - 512] == 255 || frameData[index - 1] == 255 || frameData[index + 1] == 255 || frameData[index + 512] == 255)
+            //            {
+            //                this.bodyIndexPixels[index] = BendHandOutlineColor;
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        // this pixel is not part of a player
+            //        // display black
+            //        this.bodyIndexPixels[index] = 0x00000000;
+            //    }
+            //}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            //// convert body index to a visual representation
+            //for (int i = 0; i < (int)bodyIndexFrameDataSize; ++i)
+            //{
+            //    // the BodyColor array has been sized to match
+            //    // BodyFrameSource.BodyCount
+            //    if (frameData[i] < BodyColor.Length && this.depthPixels[i] != 0)
+            //    {
+            //        // this pixel is part of a player,
+            //        // display the appropriate color
+            //        this.bodyIndexPixels[i] = BodyColor[frameData[i]];
+            //        this.bodyIndexPixels[i] = 0;
+
+
+            //        // 进行外部点的判断                  
+            //        if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+            //        {
+            //            // 如果上下左右任一点颜色是255, 则该点为外部点
+            //            if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+            //            {
+            //                this.bodyIndexPixels[i] = handOutlineColor;
+            //            }
+            //        }
+
+
+
+
+            //        //// 根据阈值计算弯曲手指
+            //        //if (this.depthPixels[i] < this.maxHandDist - 5)
+            //        //{
+            //        //    this.bodyIndexPixels[i] = BendHandOutlineColor;
+            //        //}
+
+
+
+
+
+
+
+
+
+
+
+            //    }
+            //    else
+            //    {
+            //        // this pixel is not part of a player
+            //        // display black
+            //        this.bodyIndexPixels[i] = 0x00000000;
+            //    }
+            //}
         }
 
         /// <summary>
@@ -293,6 +659,9 @@ namespace HandMotionCaptureByKinect
         {
             // depth frame data is a 16 bit value
             ushort* frameData = (ushort*)depthFrameData;
+            int count = 0;
+
+            this.handPixels = new int[(int)(depthFrameDataSize / this.depthFrameDescription.BytesPerPixel)];
 
             // convert depth to a visual representation
             for (int i = 0; i < (int)(depthFrameDataSize / this.depthFrameDescription.BytesPerPixel); ++i)
@@ -303,22 +672,64 @@ namespace HandMotionCaptureByKinect
                 // To convert to a byte, we're mapping the depth value to the byte range.
                 // Values outside the reliable depth range are mapped to 0 (black).
                 this.depthPixels[i] = (byte)(depth >= minDepth && depth <= maxDepth ? (depth / MapDepthToByte) : 0);
-                if (depth > this.maxHandDist)
+                if (depth > this.maxHandDist || depth == 0)
                 {
                     this.depthPixels[i] = 0;
+                    this.handPixels[i] = 0;
+                }
+                else
+                {
+                    // 进行左右手像素点区分
+                    if (maxDistHand == 1)
+                    {
+                        if (depth > rightWristDist) // 判断是否为左手像素点
+                        {
+                            //leftHandPixelInxexs.Add(i);
+                            this.handPixels[i] = 1;
+                        }
+                        else if (depth <= rightWristDist)     // 判断是否为右手像素点
+                        {
+                            //rightHandPixelInxexs.Add(i);
+                            this.handPixels[i] = 2;
+                        }
+                    }
+                    else if (maxDistHand == 2)
+                    {
+                        if (depth > leftWristDist) // 判断是否为右手像素点
+                        {
+                            //rightHandPixelInxexs.Add(i);
+                            this.handPixels[i] = 2;
+                        }
+                        else if (depth <= leftWristDist)     // 判断是否为左手像素点
+                        {
+                            this.handPixels[i] = 1;
+                        }
+                    }
+                    else
+                    {
+                        this.handPixels[i] = 0;
+                    }
+                    count++;
                 }
 
-//                 if ((this.depthPixels[i] >= this.leftMiniDist && this.depthPixels[i] <= this.leftMaxDist) || (this.depthPixels[i] >= this.rightMiniDist && this.depthPixels[i] <= this.rightMaxDist))
-//                 {
-//                     // To convert to a byte, we're mapping the depth value to the byte range.
-//                     // Values outside the reliable depth range are mapped to 0 (black).
-//                     this.depthPixels[i] = (byte)(depth >= minDepth && depth <= maxDepth ? (depth / MapDepthToByte) : 0);
-//                 }
-//                 else
-//                 {
-//                     this.depthPixels[i] = 0;
-//                 }
+
+
+
+
+
+
+                //                 if ((this.depthPixels[i] >= this.leftMiniDist && this.depthPixels[i] <= this.leftMaxDist) || (this.depthPixels[i] >= this.rightMiniDist && this.depthPixels[i] <= this.rightMaxDist))
+                //                 {
+                //                     // To convert to a byte, we're mapping the depth value to the byte range.
+                //                     // Values outside the reliable depth range are mapped to 0 (black).
+                //                     this.depthPixels[i] = (byte)(depth >= minDepth && depth <= maxDepth ? (depth / MapDepthToByte) : 0);
+                //                 }
+                //                 else
+                //                 {
+                //                     this.depthPixels[i] = 0;
+                //                 }
             }
+            int ccc = 0;
         }
 
         /// <summary>
@@ -335,325 +746,6 @@ namespace HandMotionCaptureByKinect
             image.Source = this.bodyIndexBitmap;
         }
 
-        /// <summary>
-        /// 通过手的深度数据计算
-        /// </summary>
-        /// <param name="e"></param>
-        private void ProcessMultiFrameByHandDepth(MultiSourceFrameArrivedEventArgs e)
-        {
-            // 初始化
-            MultiSourceFrameReference multiFrameReference = e.FrameReference;
-            MultiSourceFrame multiSourceFrame = multiFrameReference.AcquireFrame();
-
-            // 获取骨骼信息
-            bool dataReceived = false;
-            BodyFrameReference bodyFrameReference = multiSourceFrame.BodyFrameReference;
-            using (BodyFrame bodyFrame = bodyFrameReference.AcquireFrame())
-            {
-                if (bodyFrame != null)
-                {
-                    if (this.bodies == null)
-                    {
-                        this.bodies = new Body[bodyFrame.BodyCount];
-                    }
-
-                    bodyFrame.GetAndRefreshBodyData(this.bodies);
-                    dataReceived = true;
-                }
-            }
-
-            if (!dataReceived)
-            {
-                return;
-            }
-
-            //             if (dataReceived)
-            //             {
-            //                 foreach (Body body in this.bodies)
-            //                 {
-            //                     if (body.IsTracked)
-            //                     {
-            //                         IReadOnlyDictionary<JointType, Joint> joints = body.Joints;
-            // 
-            //                         // 获取手腕坐标
-            //                         float rightHandDist = joints[JointType.WristRight].Position.Z;
-            //                         float leftHandDist = joints[JointType.WristLeft].Position.Z;
-            //                         //float rightHandDist = joints[JointType.ElbowRight].Position.Z;
-            //                         //float leftHandDist = joints[JointType.ElbowLeft].Position.Z;
-            // 
-            // 
-            //                         // 计算手部捕捉阈值
-            //                         maxHandDist = rightHandDist > leftHandDist ? rightHandDist * 1000 : leftHandDist * 1000;
-            //                     }
-            //                 }
-            //             }
-
-            foreach (Body body in this.bodies)
-            {
-                if (body.IsTracked)
-                {
-                    IReadOnlyDictionary<JointType, Joint> joints = body.Joints;
-
-                    // 获取手腕坐标
-                    float rightWristDist = joints[JointType.WristRight].Position.Z;
-                    float leftWristDist = joints[JointType.WristLeft].Position.Z;
-                    //float rightHandDist = joints[JointType.ElbowRight].Position.Z;
-                    //float leftHandDist = joints[JointType.ElbowLeft].Position.Z;
-
-                    //                     // 获取手掌坐标
-                    //                     float rightHandDist = joints[JointType.HandRight].Position.Z;
-                    //                     float leftHandDist = joints[JointType.HandLeft].Position.Z;
-                    // 
-                    //                     // 计算深度阈值范围
-                    //                     float rightGap = Math.Abs(rightWristDist - rightHandDist);
-                    //                     float leftGap = Math.Abs(leftWristDist - leftHandDist);
-                    // 
-                    //                     this.rightMiniDist = (rightHandDist - rightGap) * 1000;
-                    //                     this.rightMaxDist = rightWristDist * 1000;
-                    // 
-                    //                     this.leftMiniDist = (leftHandDist - leftGap) * 1000;
-                    //                     this.leftMaxDist = leftWristDist * 1000;
-
-                    // 计算手部捕捉阈值
-                    maxHandDist = rightWristDist > leftWristDist ? rightWristDist * 1000 : leftWristDist * 1000;
-                }
-            }
-
-            //             if (this.rightMiniDist == 0 || this.rightMaxDist == 0 || this.leftMiniDist == 0 || this.leftMaxDist == 0)
-            //             {
-            //                 return;
-            //             }
-
-            if (maxHandDist == 0)
-            {
-                return;
-            }
-
-
-
-            // 获取深度信息
-            bool depthFrameProcessed = false;
-            DepthFrameReference depthFrameReference = multiSourceFrame.DepthFrameReference;
-            using (DepthFrame depthFrame = depthFrameReference.AcquireFrame())
-            {
-                if (depthFrame != null)
-                {
-                    // the fastest way to process the body index data is to directly access 
-                    // the underlying buffer
-                    using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
-                    {
-                        // verify data and write the color data to the display bitmap
-                        if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
-                            (this.depthFrameDescription.Width == this.bodyIndexBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.bodyIndexBitmap.PixelHeight))
-                        {
-                            // Note: In order to see the full range of depth (including the less reliable far field depth)
-                            // we are setting maxDepth to the extreme potential depth threshold
-                            ushort maxDepth = ushort.MaxValue;
-
-                            // If you wish to filter by reliable depth distance, uncomment the following line:
-                            //// maxDepth = depthFrame.DepthMaxReliableDistance
-
-                            this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
-                            depthFrameProcessed = true;
-                        }
-                    }
-                }
-            }
-
-            if (!depthFrameProcessed)
-            {
-                return;
-            }
-
-            // 获取身体指数信息
-            bool bodyIndexFrameProcessed = false;
-            BodyIndexFrameReference bodyIndexFrameReference = multiSourceFrame.BodyIndexFrameReference;
-            using (BodyIndexFrame bodyIndexFrame = bodyIndexFrameReference.AcquireFrame())
-            {
-                if (bodyIndexFrame != null)
-                {
-                    // the fastest way to process the body index data is to directly access 
-                    // the underlying buffer
-                    using (Microsoft.Kinect.KinectBuffer bodyIndexBuffer = bodyIndexFrame.LockImageBuffer())
-                    {
-                        // verify data and write the color data to the display bitmap
-                        if (((this.bodyIndexFrameDescription.Width * this.bodyIndexFrameDescription.Height) == bodyIndexBuffer.Size) &&
-                            (this.bodyIndexFrameDescription.Width == this.bodyIndexBitmap.PixelWidth) && (this.bodyIndexFrameDescription.Height == this.bodyIndexBitmap.PixelHeight))
-                        {
-                            // 遍历像素点集合, 将大于手部阈值的点置为255
-                            this.ProcessBodyIndexFrameData(bodyIndexBuffer.UnderlyingBuffer, bodyIndexBuffer.Size);
-                            bodyIndexFrameProcessed = true;
-                        }
-                    }
-                }
-            }
-
-
-            if (bodyIndexFrameProcessed)
-            {
-                this.RenderBodyIndexPixels();
-            }
-        }
-
-        /// <summary>
-        /// 通过手的像素点进行计算
-        /// </summary>
-        /// <param name="e"></param>
-        private void ProcessMultiFrameByHandPixel(MultiSourceFrameArrivedEventArgs e)
-        {
-            // 初始化
-            MultiSourceFrameReference multiFrameReference = e.FrameReference;
-            MultiSourceFrame multiSourceFrame = multiFrameReference.AcquireFrame();
-
-            // 获取骨骼信息
-            bool dataReceived = false;
-            BodyFrameReference bodyFrameReference = multiSourceFrame.BodyFrameReference;
-            using (BodyFrame bodyFrame = bodyFrameReference.AcquireFrame())
-            {
-                if (bodyFrame != null)
-                {
-                    if (this.bodies == null)
-                    {
-                        this.bodies = new Body[bodyFrame.BodyCount];
-                    }
-
-                    bodyFrame.GetAndRefreshBodyData(this.bodies);
-                    dataReceived = true;
-                }
-            }
-
-            if (!dataReceived)
-            {
-                return;
-            }
-
-            //             if (dataReceived)
-            //             {
-            //                 foreach (Body body in this.bodies)
-            //                 {
-            //                     if (body.IsTracked)
-            //                     {
-            //                         IReadOnlyDictionary<JointType, Joint> joints = body.Joints;
-            // 
-            //                         // 获取手腕坐标
-            //                         float rightHandDist = joints[JointType.WristRight].Position.Z;
-            //                         float leftHandDist = joints[JointType.WristLeft].Position.Z;
-            //                         //float rightHandDist = joints[JointType.ElbowRight].Position.Z;
-            //                         //float leftHandDist = joints[JointType.ElbowLeft].Position.Z;
-            // 
-            // 
-            //                         // 计算手部捕捉阈值
-            //                         maxHandDist = rightHandDist > leftHandDist ? rightHandDist * 1000 : leftHandDist * 1000;
-            //                     }
-            //                 }
-            //             }
-
-            foreach (Body body in this.bodies)
-            {
-                if (body.IsTracked)
-                {
-                    IReadOnlyDictionary<JointType, Joint> joints = body.Joints;
-
-                    // 获取手腕坐标
-                    float rightWristDist = joints[JointType.WristRight].Position.Z;
-                    float leftWristDist = joints[JointType.WristLeft].Position.Z;
-                    //float rightHandDist = joints[JointType.ElbowRight].Position.Z;
-                    //float leftHandDist = joints[JointType.ElbowLeft].Position.Z;
-
-                    //                     // 获取手掌坐标
-                    //                     float rightHandDist = joints[JointType.HandRight].Position.Z;
-                    //                     float leftHandDist = joints[JointType.HandLeft].Position.Z;
-                    // 
-                    //                     // 计算深度阈值范围
-                    //                     float rightGap = Math.Abs(rightWristDist - rightHandDist);
-                    //                     float leftGap = Math.Abs(leftWristDist - leftHandDist);
-                    // 
-                    //                     this.rightMiniDist = (rightHandDist - rightGap) * 1000;
-                    //                     this.rightMaxDist = rightWristDist * 1000;
-                    // 
-                    //                     this.leftMiniDist = (leftHandDist - leftGap) * 1000;
-                    //                     this.leftMaxDist = leftWristDist * 1000;
-
-                    // 计算手部捕捉阈值
-                    maxHandDist = rightWristDist > leftWristDist ? rightWristDist * 1000 : leftWristDist * 1000;
-                }
-            }
-
-            //             if (this.rightMiniDist == 0 || this.rightMaxDist == 0 || this.leftMiniDist == 0 || this.leftMaxDist == 0)
-            //             {
-            //                 return;
-            //             }
-
-            if (maxHandDist == 0)
-            {
-                return;
-            }
-
-
-
-            // 获取深度信息
-            bool depthFrameProcessed = false;
-            DepthFrameReference depthFrameReference = multiSourceFrame.DepthFrameReference;
-            using (DepthFrame depthFrame = depthFrameReference.AcquireFrame())
-            {
-                if (depthFrame != null)
-                {
-                    // the fastest way to process the body index data is to directly access 
-                    // the underlying buffer
-                    using (Microsoft.Kinect.KinectBuffer depthBuffer = depthFrame.LockImageBuffer())
-                    {
-                        // verify data and write the color data to the display bitmap
-                        if (((this.depthFrameDescription.Width * this.depthFrameDescription.Height) == (depthBuffer.Size / this.depthFrameDescription.BytesPerPixel)) &&
-                            (this.depthFrameDescription.Width == this.bodyIndexBitmap.PixelWidth) && (this.depthFrameDescription.Height == this.bodyIndexBitmap.PixelHeight))
-                        {
-                            // Note: In order to see the full range of depth (including the less reliable far field depth)
-                            // we are setting maxDepth to the extreme potential depth threshold
-                            ushort maxDepth = ushort.MaxValue;
-
-                            // If you wish to filter by reliable depth distance, uncomment the following line:
-                            //// maxDepth = depthFrame.DepthMaxReliableDistance
-
-                            this.ProcessDepthFrameData(depthBuffer.UnderlyingBuffer, depthBuffer.Size, depthFrame.DepthMinReliableDistance, maxDepth);
-                            depthFrameProcessed = true;
-                        }
-                    }
-                }
-            }
-
-            if (!depthFrameProcessed)
-            {
-                return;
-            }
-
-            // 获取身体指数信息
-            bool bodyIndexFrameProcessed = false;
-            BodyIndexFrameReference bodyIndexFrameReference = multiSourceFrame.BodyIndexFrameReference;
-            using (BodyIndexFrame bodyIndexFrame = bodyIndexFrameReference.AcquireFrame())
-            {
-                if (bodyIndexFrame != null)
-                {
-                    // the fastest way to process the body index data is to directly access 
-                    // the underlying buffer
-                    using (Microsoft.Kinect.KinectBuffer bodyIndexBuffer = bodyIndexFrame.LockImageBuffer())
-                    {
-                        // verify data and write the color data to the display bitmap
-                        if (((this.bodyIndexFrameDescription.Width * this.bodyIndexFrameDescription.Height) == bodyIndexBuffer.Size) &&
-                            (this.bodyIndexFrameDescription.Width == this.bodyIndexBitmap.PixelWidth) && (this.bodyIndexFrameDescription.Height == this.bodyIndexBitmap.PixelHeight))
-                        {
-                            // 遍历像素点集合, 将大于手部阈值的点置为255
-                            this.ProcessBodyIndexFrameData(bodyIndexBuffer.UnderlyingBuffer, bodyIndexBuffer.Size);
-                            bodyIndexFrameProcessed = true;
-                        }
-                    }
-                }
-            }
-
-
-            if (bodyIndexFrameProcessed)
-            {
-                this.RenderBodyIndexPixels();
-            }
-        }
 
         /// <summary>
         /// 计算手部像素点
