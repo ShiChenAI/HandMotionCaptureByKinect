@@ -60,7 +60,7 @@ namespace HandMotionCaptureByKinect
         /// <param name="pixelIndex">像素点</param>
         public static void ScreenPointPixelIndex(int screenPointX, int screenPointY, ref int pixelIndex)
         {
-            pixelIndex = screenPointX * 512 + screenPointY;
+            pixelIndex = screenPointY * 512 + screenPointX;
         }
 
         /// <summary>
