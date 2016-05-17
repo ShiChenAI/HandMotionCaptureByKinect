@@ -54,22 +54,22 @@ namespace HandMotionCaptureByKinect
         /// <summary>
         /// 左手外围轮廓颜色
         /// </summary>
-        private static readonly uint leftHandOutlineColor = 0xFF33FF00;
+        private static readonly uint leftHandOutlineColor = 0x00FF0000;     //  红
 
         /// <summary>
         /// 左手弯曲手指轮廓颜色
         /// </summary>
-        private static readonly uint leftBendHandOutlineColor = 0xFF808000;
+        private static readonly uint leftBendHandOutlineColor = 0x00FFFF00;     // 黄
 
         /// <summary>
         /// 右手外围轮廓颜色
         /// </summary>
-        private static readonly uint rightHandOutlineColor = 0xFF40FF00;
+        private static readonly uint rightHandOutlineColor = 0x000000FF;    // 蓝
 
         /// <summary>
         /// 右手弯曲手指轮廓颜色
         /// </summary>
-        private static readonly uint rightBendHandOutlineColor = 0xFFFF4000;
+        private static readonly uint rightBendHandOutlineColor = 0x00008000;    // 绿
 
         /// <summary>
         /// Active Kinect sensor
@@ -159,12 +159,12 @@ namespace HandMotionCaptureByKinect
         /// <summary>
         /// 手的像素点限制区域宽度
         /// </summary>
-        private int handPixelLimitedWidth = 85;
+        private int handPixelLimitedWidth = 45;
 
         /// <summary>
         /// 手的像素点限制区域高度
         /// </summary>
-        private int handPixelLimitedHeight = 106;
+        private int handPixelLimitedHeight = 45;
 
         /// <summary>
         /// 左手中心点的像素点
@@ -199,7 +199,7 @@ namespace HandMotionCaptureByKinect
         /// <summary>
         /// 弯曲手指距离阈值
         /// </summary>
-        private double bendFigerhreshold = 5;
+        private double bendFigerhreshold = 60;
 
         public MainWindow()
         {
@@ -373,15 +373,19 @@ namespace HandMotionCaptureByKinect
                     // 获取左右手的中心像素点
                     CameraSpacePoint position = joints[JointType.HandLeft].Position;
                     DepthSpacePoint depthSpacePoint = this.mapper.MapCameraPointToDepthSpace(position);
-                    // Utility.ScreenPointPixelIndex((int)depthSpacePoint.X, (int)depthSpacePoint.Y, ref leftHandCenterPixel);
+                    Utility.ScreenPointPixelIndex((int)depthSpacePoint.X, (int)depthSpacePoint.Y, ref leftHandCenterPixel);
                     leftHandCenterPixelX = (int)depthSpacePoint.X;
                     leftHandCenterPixelY = (int)depthSpacePoint.Y;
 
+
                     position = joints[JointType.HandRight].Position;
                     depthSpacePoint = this.mapper.MapCameraPointToDepthSpace(position);
-                    // Utility.ScreenPointPixelIndex((int)depthSpacePoint.X, (int)depthSpacePoint.Y, ref rightHandCenterPixel); 
+                    Utility.ScreenPointPixelIndex((int)depthSpacePoint.X, (int)depthSpacePoint.Y, ref rightHandCenterPixel); 
                     rightHandCenterPixelX = (int)depthSpacePoint.X;
                     rightHandCenterPixelY = (int)depthSpacePoint.Y;
+
+                    double handDist = joints[JointType.HandLeft].Position.Z;
+                    double wristDist = joints[JointType.WristLeft].Position.Z;
                 }
             }
 
@@ -500,7 +504,6 @@ namespace HandMotionCaptureByKinect
 
             for (int i = 0; i < this.handPixels.Count(); i++)
             {
-               
                 if (frameData[i] < BodyColor.Length && this.depthPixels[i] != 0)
                 {
                     this.bodyIndexPixels[i] = 0x00000000;
@@ -510,74 +513,75 @@ namespace HandMotionCaptureByKinect
                     switch (handPixels[i])
                     {
                         case 1:         // 左手
-                            // 进行外部点的判断                  
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        // 进行外部点的判断                  
+                                        //if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        //{
+                                        //    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                        //    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                        //    {
+                                        // 进行范围判定
+                            if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
                             {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                                {
-                                    // 进行范围判定
-                                    if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
-                                    {
-                                        this.bodyIndexPixels[i] = leftHandOutlineColor;
-                                    }
-                                }
+                                this.bodyIndexPixels[i] = leftHandOutlineColor;
                             }
+                            //    }
+                            //}
+                            //this.bodyIndexPixels[i] = leftHandOutlineColor;
                             break;
                         case 2:         // 左手弯曲
-                            // 进行外部点的判断                  
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        // 进行外部点的判断
+                                        //if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        //{
+                                        //    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                        //    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                        //    {
+                                        // 进行范围判定
+                            if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
                             {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                                {
-                                    // 进行范围判定
-                                    if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
-                                    {
-                                        this.bodyIndexPixels[i] = leftBendHandOutlineColor;
-                                    }
-                                }
+                                this.bodyIndexPixels[i] = leftBendHandOutlineColor;
                             }
+                            //    }
+                            //}
+                            //this.bodyIndexPixels[i] = leftBendHandOutlineColor;
                             break;
                         case 3:         // 右手
-                            // 进行外部点的判断                  
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        // 进行外部点的判断                  
+                                        //if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        //{
+                                        //    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                        //    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                        //    {
+                                        // 进行范围判定
+                            if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
                             {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                                {
-                                    // 进行范围判定
-                                    if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
-                                    {
-                                        this.bodyIndexPixels[i] = rightHandOutlineColor;
-                                    }
-                                }
+                                this.bodyIndexPixels[i] = rightHandOutlineColor;
                             }
+                            //    }
+                            //}
+                            //this.bodyIndexPixels[i] = rightHandOutlineColor;
                             break;
                         case 4:         // 右手弯曲
-                            // 进行外部点的判断                  
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        // 进行外部点的判断                  
+                                        //if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        //{
+                                        //    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                        //    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                        //    {
+                                        // 进行范围判定
+                            if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
                             {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                                {
-                                    // 进行范围判定
-                                    if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
-                                    {
-                                        this.bodyIndexPixels[i] = rightBendHandOutlineColor;
-                                    }
-                                }
+                                this.bodyIndexPixels[i] = rightBendHandOutlineColor;
                             }
+                            //    }
+                            //}
+                            //this.bodyIndexPixels[i] = rightBendHandOutlineColor;
                             break;
                         default:
                             this.bodyIndexPixels[i] = 0x00000000;
                             break;
                     }
 
-                    if (i == leftHandCenterPixel || i == rightHandCenterPixel)
-                    {
-                        this.bodyIndexPixels[i] = 0xFF000000;
-                    }
+
 
                     //if (handPixels[i] == 0)
                     //{
@@ -607,7 +611,18 @@ namespace HandMotionCaptureByKinect
                     //        }
                     //    }
                     //}
-
+                    if (i == leftHandCenterPixel || i == rightHandCenterPixel)
+                    {
+                        this.bodyIndexPixels[i] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 512] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 1] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 512] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 1] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 513] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 2] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 513] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 2] = 0x00FFFFFF;
+                    }
 
                 }
                 else
@@ -615,7 +630,11 @@ namespace HandMotionCaptureByKinect
                     // this pixel is not part of a player
                     // display black
                     this.bodyIndexPixels[i] = 0x00000000;
+
+
                 }
+
+
             }
 
             // 弯曲手指轮廓判定
@@ -845,6 +864,7 @@ namespace HandMotionCaptureByKinect
                 //                 }
             }
             int ccc = 0;
+
         }
 
         /// <summary>

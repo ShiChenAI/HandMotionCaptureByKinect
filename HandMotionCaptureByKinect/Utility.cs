@@ -48,8 +48,8 @@ namespace HandMotionCaptureByKinect
         /// <param name="screenPointY">屏幕二维点纵坐标</param>
         public static void PixelIndexToScreenPoint(int pixelIndex, ref int screenPointX, ref int screenPointY)
         {
-            screenPointX = pixelIndex / 512;
-            screenPointY = pixelIndex % 512;
+            screenPointX = pixelIndex % 512;
+            screenPointY = pixelIndex / 512;
         }
 
         /// <summary>
