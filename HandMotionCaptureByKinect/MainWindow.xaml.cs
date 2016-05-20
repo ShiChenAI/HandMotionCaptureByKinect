@@ -514,67 +514,115 @@ namespace HandMotionCaptureByKinect
                     {
                         case 1:         // 左手
                                         // 进行外部点的判断                  
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                            if (radShowAll.IsChecked == true)
                             {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                // 进行范围判定
+                                if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
                                 {
-                                    // 进行范围判定
-                                    if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
-                                    {
-                                        this.bodyIndexPixels[i] = leftHandOutlineColor;
-                                    }
+                                    this.bodyIndexPixels[i] = leftHandOutlineColor;
                                 }
                             }
-                            //this.bodyIndexPixels[i] = leftHandOutlineColor;
+                            else
+                            {
+                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                {
+                                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                    {
+                                        // 进行范围判定
+                                        if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                                        {
+                                            this.bodyIndexPixels[i] = leftHandOutlineColor;
+                                        }
+                                    }
+                                }
+                            }                           
                             break;
                         case 2:         // 左手弯曲
                                         // 进行外部点的判断
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                            if (radShowAll.IsChecked == true)
                             {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (handPixels[i - 512] == 1 || handPixels[i - 1] == 1 || handPixels[i + 1] == 1 || handPixels[i + 512] == 1)
+                                // 进行范围判定
+                                if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
                                 {
-                                    // 进行范围判定
-                                    if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                                    this.bodyIndexPixels[i] = leftBendHandOutlineColor;
+                                }
+                            }
+                            else
+                            {
+                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                {
+                                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                    if (handPixels[i - 512] == 1 || handPixels[i - 1] == 1 || handPixels[i + 1] == 1 || handPixels[i + 512] == 1)
                                     {
-                                        this.bodyIndexPixels[i] = leftBendHandOutlineColor;
+                                        // 进行范围判定
+                                        if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                                        {
+                                            this.bodyIndexPixels[i] = leftBendHandOutlineColor;
+                                        }
                                     }
                                 }
                             }
-                            //this.bodyIndexPixels[i] = leftBendHandOutlineColor;
                             break;
                         case 3:         // 右手
-                                        // 进行外部点的判断                  
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                        // 进行外部点的判断
+                            if (chcShowBothHands.IsChecked == false)
                             {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                continue;
+                            }
+                            if (radShowAll.IsChecked == true)
+                            {
+                                // 进行范围判定
+                                if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
                                 {
-                                    // 进行范围判定
-                                    if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
+                                    this.bodyIndexPixels[i] = rightHandOutlineColor;
+                                }
+                            }
+                            else
+                            {
+                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                {
+                                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                                    {
+                                        // 进行范围判定
+                                        if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
                                         {
                                             this.bodyIndexPixels[i] = rightHandOutlineColor;
                                         }
-                                }
-                            }
-                            //this.bodyIndexPixels[i] = rightHandOutlineColor;
-                            break;
-                        case 4:         // 右手弯曲
-                                        // 进行外部点的判断                  
-                            if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
-                            {
-                                // 如果上下左右任一点颜色是255, 则该点为外部点
-                                if (handPixels[i - 512] == 3 || handPixels[i - 1] == 3 || handPixels[i + 1] == 3 || handPixels[i + 512] == 3)
-                                {
-                                    // 进行范围判定
-                                    if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
-                                    {
-                                        this.bodyIndexPixels[i] = rightBendHandOutlineColor;
                                     }
                                 }
                             }
-                            //this.bodyIndexPixels[i] = rightBendHandOutlineColor;
+                            break;
+                        case 4:         // 右手弯曲
+                                        // 进行外部点的判断 
+                            if (chcShowBothHands.IsChecked == false)
+                            {
+                                continue;
+                            }
+                            if (radShowAll.IsChecked == true)
+                            {
+                                // 进行范围判定
+                                if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
+                                {
+                                    this.bodyIndexPixels[i] = rightBendHandOutlineColor;
+                                }
+                            }
+                            else
+                            {
+                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                                {
+                                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                                    if (handPixels[i - 512] == 3 || handPixels[i - 1] == 3 || handPixels[i + 1] == 3 || handPixels[i + 512] == 3)
+                                    {
+                                        // 进行范围判定
+                                        if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
+                                        {
+                                            this.bodyIndexPixels[i] = rightBendHandOutlineColor;
+                                        }
+                                    }
+                                }
+                            }
                             break;
                         default:
                             this.bodyIndexPixels[i] = 0x00000000;
@@ -800,48 +848,67 @@ namespace HandMotionCaptureByKinect
                 }
                 else
                 {
-                    // 进行左右手像素点区分
-                    if (maxDistHand == 1)   // 左手
+                    if (chcShowBothHands.IsChecked == true)
                     {
-                        if (depth > maxHandDist - bendFigerhreshold)                                        // 判断是否为左手像素点
+                        // 进行左右手像素点区分
+                        if (maxDistHand == 1)   // 左手
                         {
-                            this.handPixels[i] = 1;
+                            if (depth > maxHandDist - bendFigerhreshold)                                        // 判断是否为左手像素点
+                            {
+                                this.handPixels[i] = 1;
+                            }
+                            else if (depth <= maxHandDist - bendFigerhreshold && depth > rightWristDist)        // 判断是否为左手弯曲部分像素点
+                            {
+                                this.handPixels[i] = 2;
+                            }
+                            else if (depth <= rightWristDist && depth > rightWristDist - bendFigerhreshold)     // 判断是否为右手像素点
+                            {
+                                this.handPixels[i] = 3;
+                            }
+                            else if (depth <= rightWristDist - bendFigerhreshold)                               // 判断是否为右手弯曲部分像素点
+                            {
+                                this.handPixels[i] = 4;
+                            }
                         }
-                        else if (depth <= maxHandDist - bendFigerhreshold && depth > rightWristDist)        // 判断是否为左手弯曲部分像素点
+                        else if (maxDistHand == 2)  // 右手
                         {
-                            this.handPixels[i] = 2;
+                            if (depth > maxHandDist - bendFigerhreshold)                                        // 判断是否为右手像素点
+                            {
+                                this.handPixels[i] = 3;
+                            }
+                            else if (depth <= maxHandDist - bendFigerhreshold && depth > leftWristDist)         // 判断是否为右手弯曲部分
+                            {
+                                this.handPixels[i] = 4;
+                            }
+                            else if (depth <= leftWristDist && depth > leftWristDist - bendFigerhreshold)       // 判断是否为左手像素点
+                            {
+                                this.handPixels[i] = 1;
+                            }
+                            else if (depth <= leftWristDist - bendFigerhreshold)                                // 判断是否为左手弯曲部分像素点
+                            {
+                                this.handPixels[i] = 2;
+                            }
                         }
-                        else if (depth <= rightWristDist && depth > rightWristDist - bendFigerhreshold)     // 判断是否为右手像素点
+                        else
                         {
-                            this.handPixels[i] = 3;
-                        }
-                        else if (depth <= rightWristDist - bendFigerhreshold)                               // 判断是否为右手弯曲部分像素点
-                        {
-                            this.handPixels[i] = 4;
-                        }
-                    }
-                    else if (maxDistHand == 2)  // 右手
-                    {
-                        if (depth > maxHandDist - bendFigerhreshold)                                        // 判断是否为右手像素点
-                        {
-                            this.handPixels[i] = 3;
-                        }
-                        else if (depth <= maxHandDist - bendFigerhreshold && depth > leftWristDist)         // 判断是否为右手弯曲部分
-                        {
-                            this.handPixels[i] = 4;
-                        }
-                        else if (depth <= leftWristDist && depth > leftWristDist - bendFigerhreshold)       // 判断是否为左手像素点
-                        {
-                            this.handPixels[i] = 1;
-                        }
-                        else if (depth <= leftWristDist - bendFigerhreshold)                                // 判断是否为左手弯曲部分像素点
-                        {
-                            this.handPixels[i] = 2;
+                            this.handPixels[i] = 0;
                         }
                     }
                     else
                     {
-                        this.handPixels[i] = 0;
+                        // 只显示左手
+                        if (depth <= leftWristDist && depth > leftWristDist - bendFigerhreshold)
+                        {
+                            this.handPixels[i] = 1;
+                        }
+                        else if (depth <= leftWristDist - bendFigerhreshold)
+                        {
+                            this.handPixels[i] = 2;
+                        }
+                        else
+                        {
+                            this.handPixels[i] = 0;
+                        }
                     }
                     count++;
                 }
@@ -922,6 +989,11 @@ namespace HandMotionCaptureByKinect
 
                 }
             }
+        }
+
+        private void radOutline_Checked(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 }
