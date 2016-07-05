@@ -74,5 +74,10 @@ namespace HandMotionCaptureByKinect
         {
             return (Math.Abs(a - b) < tol);
         }
+
+        //public static int GetNextIndex (int curContourIndex, int lastContourIndex)
+        //{
+        //    int nextIndex = cur
+        //}
     }
 }

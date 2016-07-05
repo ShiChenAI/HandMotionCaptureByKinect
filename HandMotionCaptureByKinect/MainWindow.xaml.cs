@@ -27,12 +27,10 @@ namespace HandMotionCaptureByKinect
         /// Size of the RGB pixel in the bitmap
         /// </summary>
         private const int BytesPerPixel = 4;
-
         /// <summary>
         /// Map depth range to byte range
         /// </summary>
         private const int MapDepthToByte = 8000 / 256;
-
         /// <summary>
         /// Collection of colors to be used to display the BodyIndexFrame data.
         /// </summary>
@@ -50,156 +48,142 @@ namespace HandMotionCaptureByKinect
             //0x0000FF00,
             //0x0000FF00,
         };
-
         /// <summary>
         /// 左手外围轮廓颜色
         /// </summary>
         private static readonly uint leftHandOutlineColor = 0x00FF0000;     //  红
-
         /// <summary>
         /// 左手弯曲手指轮廓颜色
         /// </summary>
         private static readonly uint leftBendHandOutlineColor = 0x00FFFF00;     // 黄
-
         /// <summary>
         /// 右手外围轮廓颜色
         /// </summary>
         private static readonly uint rightHandOutlineColor = 0x000000FF;    // 蓝
-
         /// <summary>
         /// 右手弯曲手指轮廓颜色
         /// </summary>
         private static readonly uint rightBendHandOutlineColor = 0x00008000;    // 绿
-
         /// <summary>
         /// Active Kinect sensor
         /// </summary>
         private KinectSensor kinectSensor = null;
-
         /// <summary>
         /// Reader for depth/color/body index frames
         /// </summary>
         private MultiSourceFrameReader reader;
-
         /// <summary>
         /// Description of the data contained in the body index frame
         /// </summary>
         private FrameDescription bodyIndexFrameDescription = null;
-
         /// <summary>
         /// Bitmap to display
         /// </summary>
         private WriteableBitmap bodyIndexBitmap = null;
-
         /// <summary>
         /// Intermediate storage for frame data converted to color
         /// </summary>
         private uint[] bodyIndexPixels = null;
-
         /// <summary>
         /// The coordinate mapper to convert between depth and color frames of reference
         /// </summary>
         private CoordinateMapper mapper;
-
         /// <summary>
         /// Image Width of depth frame
         /// </summary>
         private int depthWidth = 0;
-
         /// <summary>
         /// Image height of depth frame
         /// </summary>
         private int depthHeight = 0;
-
         /// <summary>
         /// Count of pixels in the depth frame
         /// </summary>
         private int depthPixelCount = 0;
-
         /// <summary>
         /// Array for the bodies
         /// </summary>
         private Body[] bodies = null;
-
         /// <summary>
         /// 手部范围阈值
         /// </summary>
         private float maxHandDist = 0;
-
         /// <summary>
         /// 右手手腕深度值
         /// </summary>
         private float rightWristDist = 0;
-
         /// <summary>
         /// 左手手腕深度值
         /// </summary>
         private float leftWristDist = 0;
-
         /// <summary>
         /// Intermediate storage for frame data converted to color
         /// </summary>
         private byte[] depthPixels = null;
-
         /// <summary>
         /// 保存手的信息(0-其他,1-左手, 2-左手弯曲, 3-右手, 4-右手弯曲)
         /// </summary>
         private int[] handPixels = null;
-
         /// <summary>
         /// 深度信息
         /// </summary>
         private FrameDescription depthFrameDescription = null;
-
         /// <summary>
         /// 最远的手(1-左, 2-右)
         /// </summary>
         private int maxDistHand = 0;
-
         /// <summary>
         /// 手的像素点限制区域宽度
         /// </summary>
         private int handPixelLimitedWidth = 50;
-
         /// <summary>
         /// 手的像素点限制区域高度
         /// </summary>
         private int handPixelLimitedHeight = 50;
-
         /// <summary>
         /// 左手中心点的像素点
         /// </summary>
         private int leftHandCenterPixel = 0;
-
         /// <summary>
         /// 右手中心点的像素点
         /// </summary>
         private int rightHandCenterPixel = 0;
-
         /// <summary>
         /// 左手中心点的像素点横坐标
         /// </summary>
         private int leftHandCenterPixelX = 0;
-
         /// <summary>
         /// 左手中心点的像素点纵坐标
         /// </summary>
         private int leftHandCenterPixelY = 0;
-
         /// <summary>
         /// 右手中心点的像素点横坐标
         /// </summary>
         private int rightHandCenterPixelX = 0;
-
         /// <summary>
         /// 右手中心点的像素点纵坐标
         /// </summary>
         private int rightHandCenterPixelY = 0;
-
         /// <summary>
         /// 弯曲手指距离阈值
         /// </summary>
         private double bendFigerhreshold = 60;
+        /// <summary>
+        /// 左手伸直点集合
+        /// </summary>
+        private List<HandPoint> leftHandStraightenPts = null;
+        /// <summary>
+        /// 左手弯曲点集合
+        /// </summary>
+        private List<HandPoint> leftHandBendPts = null;
+        /// <summary>
+        /// 右手伸直点集合
+        /// </summary>
+        private List<HandPoint> rightHandStraightenPts = null;
+        /// <summary>
+        /// 右手弯曲点集合
+        /// </summary>
+        private List<HandPoint> rightHandBendPts = null;
 
         public MainWindow()
         {
@@ -500,166 +484,197 @@ namespace HandMotionCaptureByKinect
             int rightHandPixelYMin = rightHandCenterPixelY - handPixelLimitedHeight;
             int rightHandPixelYMax = rightHandCenterPixelY + handPixelLimitedHeight;
 
+            // 初始化轮廓点数组
+            leftHandStraightenPts = new List<HandPoint>();
+            leftHandBendPts = new List<HandPoint>();
+            rightHandStraightenPts = new List<HandPoint>();
+            rightHandBendPts = new List<HandPoint>();
+
+            // 用来遍历的数组
+            List<HandPoint> tempLeftHandStraightenPts = new List<HandPoint>();
+            List<HandPoint> tempLeftHandBendPts = new List<HandPoint>();
+            List<HandPoint> tempRightHandStraightenPts = new List<HandPoint>();
+            List<HandPoint> tempRightHandBendPts = new List<HandPoint>();
+
+            // 获取bodyIndex数组
             byte* frameData = (byte*)bodyIndexFrameData;
 
-            for (int i = 0; i < this.handPixels.Count(); i++)
+            // 轮廓点判断
+            int startIndex = 0;
+            int limitIndex = 0;
+            Utility.ScreenPointPixelIndex(leftHandPixelXMin, leftHandPixelYMin, ref limitIndex);
+            for (int i = limitIndex; i < this.handPixels.Count(); i++)
             {
+                // 获取第一个点
                 if (frameData[i] < BodyColor.Length && this.depthPixels[i] != 0)
                 {
-                    this.bodyIndexPixels[i] = 0x00000000;
-                    int pixelX = 0, pixelY = 0;
-                    Utility.PixelIndexToScreenPoint(i, ref pixelX, ref pixelY);
-
-                    switch (handPixels[i])
+                    if (handPixels[i] == 1)
                     {
-                        case 1:         // 左手
-                                        // 进行外部点的判断                  
-                            if (radShowAll.IsChecked == true)
-                            {
-                                // 进行范围判定
-                                if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
-                                {
-                                    this.bodyIndexPixels[i] = leftHandOutlineColor;
-                                }
-                            }
-                            else
-                            {
-                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
-                                {
-                                    // 如果上下左右任一点颜色是255, 则该点为外部点
-                                    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                                    {
-                                        // 进行范围判定
-                                        if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
-                                        {
-                                            this.bodyIndexPixels[i] = leftHandOutlineColor;
-                                        }
-                                    }
-                                }
-                            }                           
+                        if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                        {
+                            startIndex = i;
+                            this.bodyIndexPixels[i] = leftBendHandOutlineColor;
                             break;
-                        case 2:         // 左手弯曲
-                                        // 进行外部点的判断
-                            if (radShowAll.IsChecked == true)
-                            {
-                                // 进行范围判定
-                                if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
-                                {
-                                    this.bodyIndexPixels[i] = leftBendHandOutlineColor;
-                                }
-                            }
-                            else
-                            {
-                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
-                                {
-                                    // 如果上下左右任一点颜色是255, 则该点为外部点
-                                    if (handPixels[i - 512] == 1 || handPixels[i - 1] == 1 || handPixels[i + 1] == 1 || handPixels[i + 512] == 1)
-                                    {
-                                        // 进行范围判定
-                                        if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
-                                        {
-                                            this.bodyIndexPixels[i] = leftBendHandOutlineColor;
-                                        }
-                                    }
-                                }
-                            }
-                            break;
-                        case 3:         // 右手
-                                        // 进行外部点的判断
-                            if (chcShowBothHands.IsChecked == false)
-                            {
-                                continue;
-                            }
-                            if (radShowAll.IsChecked == true)
-                            {
-                                // 进行范围判定
-                                if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
-                                {
-                                    this.bodyIndexPixels[i] = rightHandOutlineColor;
-                                }
-                            }
-                            else
-                            {
-                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
-                                {
-                                    // 如果上下左右任一点颜色是255, 则该点为外部点
-                                    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                                    {
-                                        // 进行范围判定
-                                        if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
-                                        {
-                                            this.bodyIndexPixels[i] = rightHandOutlineColor;
-                                        }
-                                    }
-                                }
-                            }
-                            break;
-                        case 4:         // 右手弯曲
-                                        // 进行外部点的判断 
-                            if (chcShowBothHands.IsChecked == false)
-                            {
-                                continue;
-                            }
-                            if (radShowAll.IsChecked == true)
-                            {
-                                // 进行范围判定
-                                if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
-                                {
-                                    this.bodyIndexPixels[i] = rightBendHandOutlineColor;
-                                }
-                            }
-                            else
-                            {
-                                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
-                                {
-                                    // 如果上下左右任一点颜色是255, 则该点为外部点
-                                    if (handPixels[i - 512] == 3 || handPixels[i - 1] == 3 || handPixels[i + 1] == 3 || handPixels[i + 512] == 3)
-                                    {
-                                        // 进行范围判定
-                                        if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
-                                        {
-                                            this.bodyIndexPixels[i] = rightBendHandOutlineColor;
-                                        }
-                                    }
-                                }
-                            }
-                            break;
-                        default:
-                            this.bodyIndexPixels[i] = 0x00000000;
-                            break;
+                        }
                     }
-
-
-
-                    //if (handPixels[i] == 0)
+                    //if (frameData[i] < BodyColor.Length && this.depthPixels[i] != 0)
                     //{
                     //    this.bodyIndexPixels[i] = 0x00000000;
-                    //}
-                    //else if (handPixels[i] == 1)
-                    //{
-                    //    // 进行外部点的判断                  
-                    //    if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    //    int pixelX = 0, pixelY = 0;
+                    //    Utility.PixelIndexToScreenPoint(i, ref pixelX, ref pixelY);
+
+                    //    // 初始化像素点
+                    //    HandPoint hp = new HandPoint();
+                    //    hp.X = pixelX;
+                    //    hp.Y = pixelY;
+                    //    hp.D = this.depthPixels[i];
+                    //    hp.index = i;
+
+                    //    switch (handPixels[i])
                     //    {
-                    //        // 如果上下左右任一点颜色是255, 则该点为外部点
-                    //        if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                    //        {
-                    //            this.bodyIndexPixels[i] = handOutlineColor;
-                    //        }
+                    //        case 1:         // 左手
+                    //                        // 进行外部点的判断                  
+                    //            if (radShowAll.IsChecked == true)
+                    //            {
+                    //                // 进行范围判定
+                    //                if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                    //                {
+                    //                    this.bodyIndexPixels[i] = leftHandOutlineColor;
+                    //                }
+                    //            }
+                    //            else
+                    //            {
+                    //                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    //                {
+                    //                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                    //                    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                    //                    {
+                    //                        // 进行范围判定
+                    //                        if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                    //                        {
+                    //                            this.bodyIndexPixels[i] = leftHandOutlineColor;
+
+                    //                            // 补充手掌点其他信息
+                    //                            hp.Type = HandPointType.LeftStraighten;
+                    //                            hp.IsOutlinePoint = true;
+                    //                            leftHandStraightenPts.Add(hp);
+                    //                            tempLeftHandStraightenPts.Add(hp);
+                    //                        }
+                    //                    }
+                    //                }
+                    //            }                           
+                    //            break;
+                    //        case 2:         // 左手弯曲
+                    //                        // 进行外部点的判断
+                    //            if (radShowAll.IsChecked == true)
+                    //            {
+                    //                // 进行范围判定
+                    //                if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                    //                {
+                    //                    this.bodyIndexPixels[i] = leftBendHandOutlineColor;
+                    //                }
+                    //            }
+                    //            else
+                    //            {
+                    //                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    //                {
+                    //                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                    //                    if (handPixels[i - 512] == 1 || handPixels[i - 1] == 1 || handPixels[i + 1] == 1 || handPixels[i + 512] == 1)
+                    //                    {
+                    //                        // 进行范围判定
+                    //                        if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                    //                        {
+                    //                            this.bodyIndexPixels[i] = leftBendHandOutlineColor;
+
+                    //                            // 补充手掌点其他信息
+                    //                            hp.Type = HandPointType.LeftBend;
+                    //                            hp.IsOutlinePoint = true;
+                    //                            leftHandBendPts.Add(hp);
+                    //                            tempLeftHandBendPts.Add(hp);
+                    //                        }
+                    //                    }
+                    //                }
+                    //            }
+                    //            break;
+                    //        case 3:         // 右手
+                    //                        // 进行外部点的判断
+                    //            if (chcShowBothHands.IsChecked == false)
+                    //            {
+                    //                continue;
+                    //            }
+                    //            if (radShowAll.IsChecked == true)
+                    //            {
+                    //                // 进行范围判定
+                    //                if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
+                    //                {
+                    //                    this.bodyIndexPixels[i] = rightHandOutlineColor;
+                    //                }
+                    //            }
+                    //            else
+                    //            {
+                    //                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    //                {
+                    //                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                    //                    if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+                    //                    {
+                    //                        // 进行范围判定
+                    //                        if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
+                    //                        {
+                    //                            this.bodyIndexPixels[i] = rightHandOutlineColor;
+
+                    //                            // 补充手掌点其他信息
+                    //                            hp.Type = HandPointType.RightStraighten;
+                    //                            hp.IsOutlinePoint = true;
+                    //                            rightHandStraightenPts.Add(hp);
+                    //                            tempRightHandStraightenPts.Add(hp);
+                    //                        }
+                    //                    }
+                    //                }
+                    //            }
+                    //            break;
+                    //        case 4:         // 右手弯曲
+                    //                        // 进行外部点的判断 
+                    //            if (chcShowBothHands.IsChecked == false)
+                    //            {
+                    //                continue;
+                    //            }
+                    //            if (radShowAll.IsChecked == true)
+                    //            {
+                    //                // 进行范围判定
+                    //                if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
+                    //                {
+                    //                    this.bodyIndexPixels[i] = rightBendHandOutlineColor;
+                    //                }
+                    //            }
+                    //            else
+                    //            {
+                    //                if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
+                    //                {
+                    //                    // 如果上下左右任一点颜色是255, 则该点为外部点
+                    //                    if (handPixels[i - 512] == 3 || handPixels[i - 1] == 3 || handPixels[i + 1] == 3 || handPixels[i + 512] == 3)
+                    //                    {
+                    //                        // 进行范围判定
+                    //                        if (pixelX <= rightHandPixelXMax && pixelX >= rightHandPixelXMin && pixelY <= rightHandPixelYMax && pixelY >= rightHandPixelYMin)
+                    //                        {
+                    //                            this.bodyIndexPixels[i] = rightBendHandOutlineColor;
+
+                    //                            // 补充手掌点其他信息
+                    //                            hp.Type = HandPointType.RightBend;
+                    //                            hp.IsOutlinePoint = true;
+                    //                            rightHandBendPts.Add(hp);
+                    //                            tempRightHandBendPts.Add(hp);
+                    //                        }
+                    //                    }
+                    //                }
+                    //            }
+                    //            break;
+                    //        default:
+                    //            this.bodyIndexPixels[i] = 0x00000000;
+                    //            break;
                     //    }
-                    //}
-                    //else if (handPixels[i] == 2)
-                    //{
-                    //    // 进行外部点的判断                  
-                    //    if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
-                    //    {
-                    //        // 如果上下左右任一点颜色是255, 则该点为外部点
-                    //        if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
-                    //        {
-                    //            this.bodyIndexPixels[i] = BendHandOutlineColor;
-                    //        }
-                    //    }
-                    //}
-                    if (i == leftHandCenterPixel || i == rightHandCenterPixel)
+
+                    // 测试, 显示手掌中心点
+                    if (i == leftHandCenterPixel)
                     {
                         this.bodyIndexPixels[i] = 0x00FFFFFF;
                         this.bodyIndexPixels[i - 512] = 0x00FFFFFF;
@@ -671,147 +686,1243 @@ namespace HandMotionCaptureByKinect
                         this.bodyIndexPixels[i + 513] = 0x00FFFFFF;
                         this.bodyIndexPixels[i + 2] = 0x00FFFFFF;
                     }
-
+                    else if (chcShowBothHands.IsChecked == true && i == rightHandCenterPixel)
+                    {
+                        this.bodyIndexPixels[i] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 512] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 1] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 512] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 1] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 513] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i - 2] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 513] = 0x00FFFFFF;
+                        this.bodyIndexPixels[i + 2] = 0x00FFFFFF;
+                    }
                 }
                 else
                 {
                     // this pixel is not part of a player
                     // display black
-                    this.bodyIndexPixels[i] = 0x00000000;
-
-
+                    //this.bodyIndexPixels[i] = 0x00000000;
                 }
-
-
             }
 
-            // 弯曲手指轮廓判定
+            // 计算轮廓点
+            HandPoint startPt = new HandPoint();
+            int pixelX = 0, pixelY = 0;
+            Utility.PixelIndexToScreenPoint(startIndex, ref pixelX, ref pixelY);
+            startPt.index = startIndex;
+            startPt.X = pixelX;
+            startPt.Y = pixelY;
+            startPt.D = this.depthPixels[startIndex];
+            startPt.Type = HandPointType.LeftStraighten;
+            startPt.IsOutlinePoint = true;
 
-            // 轮廓像素点排序
+            // 初始化保存数组
+            leftHandStraightenPts = new List<HandPoint>();
+            leftHandStraightenPts.Add(startPt);
 
-
-
-
-
-
-
-
-
-
-
-
-            //// 遍历左手像素点编号
-            //foreach (int index in leftHandPixelInxexs)
+            // 获取上方的点作为判断基准点
+            //int curContourPtIndex = 0;
+            //int curBasePtIndex = startIndex;
+            //int basePosition = 0;   // 0: i - 512, 1: i - 511, 2: i + 1, 3: i + 513, 4: i + 512, 5: i + 511, 6: i - 1, 7: i - 513
+            //HandPoint curPt = null;
+            //do
             //{
-            //    if (frameData[index] < BodyColor.Length && this.depthPixels[index] != 0)
+            //    // 判断起始点类型
+            //    switch (basePosition)
             //    {
-            //        // 进行外部点的判断                  
-            //        if (index > 512 && index + 512 < (int)bodyIndexFrameDataSize)
-            //        {
-            //            // 如果上下左右任一点颜色是255, 则该点为外部点
-            //            if (frameData[index - 512] == 255 || frameData[index - 1] == 255 || frameData[index + 1] == 255 || frameData[index + 512] == 255)
+            //        case 0:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
             //            {
-            //                this.bodyIndexPixels[index] = handOutlineColor;
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
             //            }
-            //        }
-            //    }
-            //    else
-            //    {
-            //        // this pixel is not part of a player
-            //        // display black
-            //        this.bodyIndexPixels[index] = 0x00000000;
-            //    }
-            //}
-
-
-
-            //// 遍历右手像素点编号
-            //foreach (int index in rightHandPixelInxexs)
-            //{
-            //    if (frameData[index] < BodyColor.Length && this.depthPixels[index] != 0)
-            //    {
-            //        // 进行外部点的判断                  
-            //        if (index > 512 && index + 512 < (int)bodyIndexFrameDataSize)
-            //        {
-            //            // 如果上下左右任一点颜色是255, 则该点为外部点
-            //            if (frameData[index - 512] == 255 || frameData[index - 1] == 255 || frameData[index + 1] == 255 || frameData[index + 512] == 255)
+            //            else if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
             //            {
-            //                this.bodyIndexPixels[index] = BendHandOutlineColor;
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
             //            }
-            //        }
-            //    }
-            //    else
-            //    {
-            //        // this pixel is not part of a player
-            //        // display black
-            //        this.bodyIndexPixels[index] = 0x00000000;
-            //    }
-            //}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            //// convert body index to a visual representation
-            //for (int i = 0; i < (int)bodyIndexFrameDataSize; ++i)
-            //{
-            //    // the BodyColor array has been sized to match
-            //    // BodyFrameSource.BodyCount
-            //    if (frameData[i] < BodyColor.Length && this.depthPixels[i] != 0)
-            //    {
-            //        // this pixel is part of a player,
-            //        // display the appropriate color
-            //        this.bodyIndexPixels[i] = BodyColor[frameData[i]];
-            //        this.bodyIndexPixels[i] = 0;
-
-
-            //        // 进行外部点的判断                  
-            //        if (i > 512 && i + 512 < (int)bodyIndexFrameDataSize)
-            //        {
-            //            // 如果上下左右任一点颜色是255, 则该点为外部点
-            //            if (frameData[i - 512] == 255 || frameData[i - 1] == 255 || frameData[i + 1] == 255 || frameData[i + 512] == 255)
+            //            else if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
             //            {
-            //                this.bodyIndexPixels[i] = handOutlineColor;
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
             //            }
-            //        }
+            //            else if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
-            //        //// 根据阈值计算弯曲手指
-            //        //if (this.depthPixels[i] < this.maxHandDist - 5)
-            //        //{
-            //        //    this.bodyIndexPixels[i] = BendHandOutlineColor;
-            //        //}
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            break;
+            //        case 1:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
+            //            }
+            //            break;
+            //        case 2:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
 
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
+            //            }
+            //            break;
+            //        case 3:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
+            //            }
+            //            break;
+            //        case 4:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            break;
+            //        case 5:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            break;
+            //        case 6:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            break;
+            //        case 7:
+            //            // 顺时针遍历判断基准点周围四周的八个点
+            //            if (handPixels[curBasePtIndex - 513] == 1 && frameData[curBasePtIndex - 513] < BodyColor.Length && this.depthPixels[curBasePtIndex - 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 513;
+            //                curBasePtIndex = curBasePtIndex - 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 0;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 512] == 1 && frameData[curBasePtIndex - 512] < BodyColor.Length && this.depthPixels[curBasePtIndex - 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 512;
+            //                curBasePtIndex = curBasePtIndex - 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 1;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 511] == 1 && frameData[curBasePtIndex - 511] < BodyColor.Length && this.depthPixels[curBasePtIndex - 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 511;
+            //                curBasePtIndex = curBasePtIndex - 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 2;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 1] == 1 && frameData[curBasePtIndex + 1] < BodyColor.Length && this.depthPixels[curBasePtIndex + 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 1;
+            //                curBasePtIndex = curBasePtIndex + 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 3;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 513] == 1 && frameData[curBasePtIndex + 513] < BodyColor.Length && this.depthPixels[curBasePtIndex + 513] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 513;
+            //                curBasePtIndex = curBasePtIndex + 513;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 4;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 512] == 1 && frameData[curBasePtIndex + 512] < BodyColor.Length && this.depthPixels[curBasePtIndex + 512] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 512;
+            //                curBasePtIndex = curBasePtIndex + 512;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 5;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex + 511] == 1 && frameData[curBasePtIndex + 511] < BodyColor.Length && this.depthPixels[curBasePtIndex + 511] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex + 511;
+            //                curBasePtIndex = curBasePtIndex + 511;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 6;
+            //                continue;
+            //            }
+            //            else if (handPixels[curBasePtIndex - 1] == 1 && frameData[curBasePtIndex - 1] < BodyColor.Length && this.depthPixels[curBasePtIndex - 1] != 0)
+            //            {
+            //                curContourPtIndex = curBasePtIndex - 1;
+            //                curBasePtIndex = curBasePtIndex - 1;
+            //                this.bodyIndexPixels[curContourPtIndex] = leftHandOutlineColor;
+
+            //                curPt = new HandPoint();
+            //                Utility.PixelIndexToScreenPoint(curContourPtIndex, ref pixelX, ref pixelY);
+            //                curPt.index = curContourPtIndex;
+            //                curPt.X = pixelX;
+            //                curPt.Y = pixelY;
+            //                curPt.D = this.depthPixels[curContourPtIndex];
+            //                curPt.Type = HandPointType.LeftStraighten;
+            //                curPt.IsOutlinePoint = true;
+            //                leftHandStraightenPts.Add(curPt);
+            //                basePosition = 7;
+            //                continue;
+            //            }
+            //            break;
             //    }
-            //    else
-            //    {
-            //        // this pixel is not part of a player
-            //        // display black
-            //        this.bodyIndexPixels[i] = 0x00000000;
-            //    }
+
+
             //}
+            //while (curContourPtIndex != startIndex && curContourPtIndex != startIndex + 512 && curContourPtIndex != startIndex + 511 && curContourPtIndex != startIndex + 513 && curContourPtIndex != startIndex - 1);
+            int curContourIndex = startIndex;
+            int lastContourIndex = startIndex - 512;
+            int startTracingIndex = startIndex - 512;
+            do
+            {
+
+            }
+            while (curContourIndex != startIndex);
+
+
         }
 
         /// <summary>
@@ -826,6 +1937,17 @@ namespace HandMotionCaptureByKinect
         /// <param name="maxDepth">The maximum reliable depth value for the frame</param>
         private unsafe void ProcessDepthFrameData(IntPtr depthFrameData, uint depthFrameDataSize, ushort minDepth, ushort maxDepth)
         {
+            // 计算左右手限制范围
+            int leftHandPixelXMin = leftHandCenterPixelX - handPixelLimitedWidth;
+            int leftHandPixelXMax = leftHandCenterPixelX + handPixelLimitedWidth;
+            int leftHandPixelYMin = leftHandCenterPixelY - handPixelLimitedHeight;
+            int leftHandPixelYMax = leftHandCenterPixelY + handPixelLimitedHeight;
+
+            int rightHandPixelXMin = rightHandCenterPixelX - handPixelLimitedWidth;
+            int rightHandPixelXMax = rightHandCenterPixelX + handPixelLimitedWidth;
+            int rightHandPixelYMin = rightHandCenterPixelY - handPixelLimitedHeight;
+            int rightHandPixelYMax = rightHandCenterPixelY + handPixelLimitedHeight;
+
             // depth frame data is a 16 bit value
             ushort* frameData = (ushort*)depthFrameData;
             int count = 0;
@@ -848,6 +1970,8 @@ namespace HandMotionCaptureByKinect
                 }
                 else
                 {
+                    int pixelX = 0, pixelY = 0;
+                    Utility.PixelIndexToScreenPoint(i, ref pixelX, ref pixelY);
                     if (chcShowBothHands.IsChecked == true)
                     {
                         // 进行左右手像素点区分
@@ -899,11 +2023,18 @@ namespace HandMotionCaptureByKinect
                         // 只显示左手
                         if (depth <= leftWristDist && depth > leftWristDist - bendFigerhreshold)
                         {
-                            this.handPixels[i] = 1;
+                            if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                            {
+                                this.handPixels[i] = 1;
+                            }
+                                
                         }
                         else if (depth <= leftWristDist - bendFigerhreshold)
                         {
-                            this.handPixels[i] = 2;
+                            if (pixelX <= leftHandPixelXMax && pixelX >= leftHandPixelXMin && pixelY <= leftHandPixelYMax && pixelY >= leftHandPixelYMin)
+                            {
+                                this.handPixels[i] = 2;
+                            }
                         }
                         else
                         {
@@ -930,8 +2061,6 @@ namespace HandMotionCaptureByKinect
                 //                     this.depthPixels[i] = 0;
                 //                 }
             }
-            int ccc = 0;
-
         }
 
         /// <summary>

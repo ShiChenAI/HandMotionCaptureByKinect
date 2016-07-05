@@ -113,6 +113,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="HandPoint.cs" />
+    <Compile Include="HandPointType.cs" />
     <Compile Include="TimerAssist.cs" />
     <Compile Include="Utility.cs" />
     <Page Include="MainWindow.xaml">
